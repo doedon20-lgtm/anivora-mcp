@@ -4,5 +4,6 @@
   "name": "anivora-mcp",
   "main": "src/index.js",
   "compatibility_date": "2026-10-28",
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true
 }
