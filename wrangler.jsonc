@@ -1,10 +1,12 @@
 
 {
   "$schema": "https://developers.cloudflare.com/workers/wrangler-schema.json",
-  "name": "anivora-mcp",
+  "name": "anivora-mcp-gateway",
   "main": "src/index.js",
   "compatibility_date": "2026-10-28",
   "compatibility_flags": [
-  "nodejs_compat",
-  "global_fetch_strictly_public"
-]
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+  "workers_dev": true
+}
