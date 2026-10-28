@@ -1,9 +1,10 @@
 
+import { env } from "cloudflare:workers";
 import { McpServer } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
 import { z } from "zod";
 
-function createServer(env) {
+function createServer() {
   const server = new McpServer({
     name: "anivora-mcp",
     version: "1.0.0"
@@ -11,36 +12,25 @@ function createServer(env) {
 
   server.registerTool(
     "anivora_health",
-    {
-      description: "Check the health of the AniVora task relay."
-    },
+    { description: "Check the health of the AniVora task relay." },
     async () => {
       try {
         const response = await fetch(
           `${env.RELAY_URL.replace(/\/+$/, "")}/v1/health`,
-          {
-            headers: {
-              Authorization: `Bearer ${env.RELAY_TOKEN}`
-            }
-          }
+          { headers: { Authorization: `Bearer ${env.RELAY_TOKEN}` } }
         );
-
-        const body = await response.text();
 
         return {
           isError: !response.ok,
           content: [{
             type: "text",
-            text: `Relay HTTP ${response.status}: ${body}`
+            text: `Relay HTTP ${response.status}: ${await response.text()}`
           }]
         };
       } catch {
         return {
           isError: true,
-          content: [{
-            type: "text",
-            text: "Could not reach the AniVora task relay. Check its URL and availability."
-          }]
+          content: [{ type: "text", text: "Could not reach the AniVora relay." }]
         };
       }
     }
@@ -49,14 +39,9 @@ function createServer(env) {
   server.registerTool(
     "anivora_project_status",
     {
-      description:
-        "Request an approved project-status task from the AniVora task relay.",
+      description: "Request an approved AniVora project-status task.",
       inputSchema: {
-        project: z.enum([
-          "AniVora",
-          "AniVora-Builder",
-          "CareerCraft"
-        ])
+        project: z.enum(["AniVora", "AniVora-Builder", "CareerCraft"])
       }
     },
     async ({ project }) => {
@@ -88,7 +73,7 @@ function createServer(env) {
           isError: true,
           content: [{
             type: "text",
-            text: "Could not submit the project-status task to the relay."
+            text: "Could not submit the project-status task."
           }]
         };
       }
@@ -98,8 +83,10 @@ function createServer(env) {
   return server;
 }
 
+const mcpHandler = createMcpHandler(createServer);
+
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, workerEnv, ctx) {
     const url = new URL(request.url);
 
     if (url.pathname !== "/mcp") {
@@ -108,25 +95,16 @@ export default {
       });
     }
 
-    if (
-      !env.MCP_TOKEN ||
-      !env.RELAY_TOKEN ||
-      !env.RELAY_URL
-    ) {
+    if (!workerEnv.MCP_TOKEN || !workerEnv.RELAY_TOKEN || !workerEnv.RELAY_URL) {
       return new Response("Server configuration is incomplete.", {
         status: 500
       });
     }
 
-    const authorization = request.headers.get("Authorization") || "";
-
-    if (authorization !== `Bearer ${env.MCP_TOKEN}`) {
-      return new Response("Unauthorized", {
-        status: 401
-      });
+    if (request.headers.get("Authorization") !== `Bearer ${workerEnv.MCP_TOKEN}`) {
+      return new Response("Unauthorized", { status: 401 });
     }
 
-    const handler = createMcpHandler(() => createServer(env));
-    return handler(request, env, ctx);
+    return mcpHandler(request, workerEnv, ctx);
   }
 };
